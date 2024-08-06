@@ -11,9 +11,9 @@ fn play(
     player1_action: &FheUint8,
     player2_action: &FheUint8,
     player3_action: &FheUint8,
-) -> FheUint8 {
+) -> [FheUint8; 2] {
     // To compile from c
-    return player0_action.clone();
+    return [board[0].0.clone(), board[0].1.clone()];
 }
 
 // fn u64_to_binary<const N: usize>(v: u64) -> [bool; N] {
@@ -125,7 +125,7 @@ fn main() {
     println!("Key switch time: {:?}", now.elapsed());
 
     // Server setup board
-    let mut server_players_coords = encrypted_starting_coords;
+    let mut server_players_coords = encrypted_starting_coords.as_slice();
     // let mut server_eggs
 
     // Game loop //
@@ -165,42 +165,32 @@ fn main() {
     println!("Step 1: Server key switch: {:?}", now.elapsed());
 
     // After extracting each client's private inputs, server proceeds to evaluate the circuit
+    let now = std::time::Instant::now();
     let server_players_coords = play(
         &encrypted_constants,
-        &server_players_coords,
+        server_players_coords,
         &encrypted_actions[0],
         &encrypted_actions[1],
         &encrypted_actions[2],
         &encrypted_actions[3],
     );
+    println!("FHE circuit evaluation time: {:?}", now.elapsed());
 
     // client side //
 
-    // After extracting each client's private inputs, server proceeds to evaluate
-    // fibonacci_number
-    // let now = std::time::Instant::now();
-    // // let cts_out = fibonacci_number(&cts_0);
-    // let cts_out;
-    // println!("FHE circuit evaluation time: {:?}", now.elapsed());
+    // each client produces decryption share
+    let dec_shares = server_players_coords
+        .iter()
+        .map(|ct| cks.iter().map(|k| k.gen_decryption_share(ct)).collect_vec())
+        .collect_vec();
 
-    // // Server has finished running compute. Clients can proceed to decrypt the
-    // // output ciphertext using multi-party decryption.
+    // With all decryption shares, clients can aggregate the shares and decrypt the
+    // ciphertext
+    let out_back = server_players_coords
+        .iter()
+        .zip(dec_shares.iter())
+        .map(|(ct, dec_shares)| cks[0].aggregate_decryption_shares(ct, dec_shares))
+        .collect_vec();
 
-    // // Client side //
-
-    // // each client produces decryption share
-    // let dec_shares = cts_out
-    //     .iter()
-    //     .map(|ct| cks.iter().map(|k| k.gen_decryption_share(ct)).collect_vec())
-    //     .collect_vec();
-
-    // // With all decryption shares, clients can aggregate the shares and decrypt the
-    // // ciphertext
-    // let out_back = cts_out
-    //     .iter()
-    //     .zip(dec_shares.iter())
-    //     .map(|(ct, dec_shares)| cks[0].aggregate_decryption_shares(ct, dec_shares))
-    //     .collect_vec();
-
-    // println!("Result: {:?}", out_back);
+    println!("Result: {:?}", out_back);
 }
