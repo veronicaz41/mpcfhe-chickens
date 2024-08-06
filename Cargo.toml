@@ -1,0 +1,11 @@
+[package]
+name = "mpcfhe-chickens"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+phantom-zone = { git = "https://github.com/gausslabs/phantom-zone", rev = "4248443e7a90c27f2a07392771d77fd2d096b220", features = [
+    "non_interactive_mp",
+] }
+rand = "0.8.5"
+itertools = "0.13.0"
