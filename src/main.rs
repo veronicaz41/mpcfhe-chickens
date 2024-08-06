@@ -1,44 +1,46 @@
 use itertools::Itertools;
-// use phantom_zone::{
-//     SeededBatchedFheUint8,
-// };
+use phantom_zone::FheUint8;
 use phantom_zone::*;
 
 use rand::{thread_rng, RngCore};
 
-fn sum_fhe(a: &FheUint8, b: &FheUint8, c: &FheUint8, total: &FheUint8) -> FheUint8 {
-    &(&(a + b) + c) - total
+fn play(
+    encrypted_constants: &[FheUint8],
+    board: &[(FheUint8, FheUint8)],
+    player0_action: &FheUint8,
+    player1_action: &FheUint8,
+    player2_action: &FheUint8,
+    player3_action: &FheUint8,
+) -> FheUint8 {
+    // To compile from c
+    return player0_action.clone();
 }
 
-fn u64_to_binary<const N: usize>(v: u64) -> [bool; N] {
-    assert!((v as u128) < 2u128.pow(N as u32));
-    let mut result = [false; N];
-    for i in 0..N {
-        if (v >> i) & 1 == 1 {
-            result[i] = true;
-        }
-    }
-    result
-}
+// fn u64_to_binary<const N: usize>(v: u64) -> [bool; N] {
+//     assert!((v as u128) < 2u128.pow(N as u32));
+//     let mut result = [false; N];
+//     for i in 0..N {
+//         if (v >> i) & 1 == 1 {
+//             result[i] = true;
+//         }
+//     }
+//     result
+// }
 
+#[derive(Copy, Clone)]
 enum Action {
     MoveUp = 0,
-    MoveDown = 1,
-    MoveLeft = 2,
-    MoveRight = 3,
-    LayEgg = 4,
-    PickupEgg = 5,
+    MoveDown,
+    MoveLeft,
+    MoveRight,
+    LayEgg,
+    PickupEgg,
 }
 
 const BOARD_DIMS: u8 = 4;
 const BOARD_SIZE: usize = (BOARD_DIMS as usize) * (BOARD_DIMS as usize);
 const N_PLAYERS: usize = 4;
 const MAX_ACTIONS: u8 = 5;
-
-struct Board {
-    players_coords: Vec<SeededBatchedFheUint8<Vec<u64>, [u8; 32]>>,
-    // eggs encrypted bit array
-}
 
 fn main() {
     set_parameter_set(ParameterSelector::NonInteractiveLTE4Party);
@@ -48,7 +50,7 @@ fn main() {
     thread_rng().fill_bytes(&mut seed);
     set_common_reference_seed(seed);
 
-    let no_of_parties = 4;
+    let no_of_parties = N_PLAYERS;
 
     // Client side //
 
@@ -71,7 +73,6 @@ fn main() {
     let constants_enc = cks[0].encrypt(range.as_slice());
 
     // starting coordinates for each player
-    let now = std::time::Instant::now();
     let starting_coords = vec![(0u8, 1u8), (1u8, 0u8), (0u8, 0u8), (1u8, 1u8)];
     // each client encrypted their private input which is their initial coordinates
     let staring_coords_enc = cks
@@ -114,15 +115,66 @@ fn main() {
         .iter()
         .enumerate()
         .map(|(id, enc)| {
-            enc.unseed::<Vec<Vec<u64>>>().key_switch(id).extract_all();
+            let (encrypted_x, encrypted_y) = {
+                let mut tmp = enc.unseed::<Vec<Vec<u64>>>().key_switch(id).extract_all();
+                (tmp.swap_remove(0), tmp.swap_remove(0))
+            };
+            return (encrypted_x, encrypted_y);
         })
         .collect_vec();
     println!("Key switch time: {:?}", now.elapsed());
 
     // Server setup board
-    // let mut server_board = Board {
-    //     players_coords:
-    // }
+    let mut server_players_coords = encrypted_starting_coords;
+    // let mut server_eggs
+
+    // Game loop //
+
+    // client side //
+    let now = std::time::Instant::now();
+    let actions = vec![
+        Action::MoveUp,
+        Action::MoveDown,
+        Action::LayEgg,
+        Action::PickupEgg,
+    ];
+    let actions_enc = cks
+        .iter()
+        .enumerate()
+        .map(|(id, k)| {
+            let action = actions[id] as u8;
+            k.encrypt(vec![action].as_slice())
+        })
+        .collect_vec();
+    println!("Step 1: Client encrypt action: {:?}", now.elapsed());
+
+    // server side //
+
+    let now = std::time::Instant::now();
+    let encrypted_actions = actions_enc
+        .iter()
+        .enumerate()
+        .map(|(id, enc)| {
+            let (encrypted_action) = {
+                let mut tmp = enc.unseed::<Vec<Vec<u64>>>().key_switch(id).extract_all();
+                (tmp.swap_remove(0))
+            };
+            return encrypted_action;
+        })
+        .collect_vec();
+    println!("Step 1: Server key switch: {:?}", now.elapsed());
+
+    // After extracting each client's private inputs, server proceeds to evaluate the circuit
+    let server_players_coords = play(
+        &encrypted_constants,
+        &server_players_coords,
+        &encrypted_actions[0],
+        &encrypted_actions[1],
+        &encrypted_actions[2],
+        &encrypted_actions[3],
+    );
+
+    // client side //
 
     // After extracting each client's private inputs, server proceeds to evaluate
     // fibonacci_number
