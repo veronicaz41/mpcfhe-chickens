@@ -245,8 +245,8 @@ fn main() {
 
     // After extracting client's private inputs, server proceeds to evaluate the circuit
     let now = std::time::Instant::now();
-    let encrypted_new_eggs = pickup_egg::pickup_egg(&server_players_coords[0], &encrypted_new_eggs);
-    println!("lay_egg circuit evaluation time: {:?}", now.elapsed());
+    let encrypted_new_eggs = pickup_egg::pickup_egg(&server_players_coords[0], &server_eggs);
+    println!("pickup_egg circuit evaluation time: {:?}", now.elapsed());
 
     // Update eggs positions
     server_eggs = encrypted_new_eggs.clone();
@@ -268,4 +268,44 @@ fn main() {
         .collect_vec();
 
     println!("New eggs: {:?}", decrypted_new_eggs);
+
+    // -------------- Get cell --------------//
+
+    // client side //
+
+    // client send player_id, and the function to call "get_cell"
+
+    // server side //
+
+    // After extracting client's private inputs, server proceeds to evaluate the circuit
+    let now = std::time::Instant::now();
+    let mut flattened_players_coords = server_players_coords[0].clone();
+    for i in 1..no_of_parties {
+        flattened_players_coords.append(&mut server_players_coords[i])
+    }
+
+    let encrypted_cell = get_cell::get_cell(
+        &server_players_coords[0],
+        &server_eggs,
+        &flattened_players_coords,
+    );
+    println!("get_cell circuit evaluation time: {:?}", now.elapsed());
+
+    // client side //
+
+    // each client produces decryption share
+    let dec_shares = encrypted_cell
+        .iter()
+        .map(|ct| cks.iter().map(|k| k.gen_decryption_share(ct)).collect_vec())
+        .collect_vec();
+
+    // With all decryption shares, clients can aggregate the shares and decrypt the
+    // ciphertext
+    let decrypted_cell = encrypted_cell
+        .iter()
+        .zip(dec_shares.iter())
+        .map(|(ct, dec_shares)| cks[0].aggregate_decryption_shares(ct, dec_shares))
+        .collect_vec();
+
+    println!("Cell: {:?}", decrypted_cell);
 }
