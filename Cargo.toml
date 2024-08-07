@@ -9,3 +9,4 @@ phantom-zone = { git = "https://github.com/gausslabs/phantom-zone", rev = "42484
 ] }
 rand = "0.8.5"
 itertools = "0.13.0"
+rayon = "*"
