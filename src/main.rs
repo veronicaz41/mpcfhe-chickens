@@ -155,6 +155,10 @@ fn main() {
     for i in 1..no_of_parties {
         println!("Player i: {:?}", i);
 
+        // I have no idea I have to keep setting this,
+        // otherwise, I'm getting "Parameters not set"
+        set_parameter_set(ParameterSelector::NonInteractiveLTE4Party);
+
         // client side //
 
         let direction = u8_to_binary::<8>(directions[i] as u8);
@@ -208,6 +212,7 @@ fn main() {
     // client send player_id, and the function to call "lay_egg"
 
     // server side //
+    set_parameter_set(ParameterSelector::NonInteractiveLTE4Party);
 
     // After extracting client's private inputs, server proceeds to evaluate the circuit
     let now = std::time::Instant::now();
@@ -243,6 +248,8 @@ fn main() {
 
     // server side //
 
+    set_parameter_set(ParameterSelector::NonInteractiveLTE4Party);
+
     // After extracting client's private inputs, server proceeds to evaluate the circuit
     let now = std::time::Instant::now();
     let encrypted_new_eggs = pickup_egg::pickup_egg(&server_players_coords[0], &server_eggs);
@@ -276,6 +283,8 @@ fn main() {
     // client send player_id, and the function to call "get_cell"
 
     // server side //
+
+    set_parameter_set(ParameterSelector::NonInteractiveLTE4Party);
 
     // After extracting client's private inputs, server proceeds to evaluate the circuit
     let now = std::time::Instant::now();
