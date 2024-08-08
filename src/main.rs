@@ -86,18 +86,20 @@ fn main() {
     let starting_coords = vec![(0u8, 0u8), (2u8, 0u8), (1u8, 1u8), (1u8, 1u8)];
 
     // each client encrypted their private input which is their initial coordinates
+    let now = std::time::Instant::now();
     let staring_coords_enc = cks
         .iter()
         .enumerate()
         .map(|(id, k)| {
-            let coords = coords_to_binary::<64>(starting_coords[id].0, starting_coords[id].1);
+            let coords = coords_to_binary::<16>(starting_coords[id].0, starting_coords[id].1);
             k.encrypt(coords.as_slice())
         })
         .collect_vec();
     println!("Client encrypt private inputs time: {:?}", now.elapsed());
 
     // client 0 encrypt the initial board for eggs
-    let mut eggs = [false; BOARD_SIZE];
+    let now = std::time::Instant::now();
+    let eggs = [false; BOARD_SIZE];
     let eggs_enc = cks[0].encrypt(eggs.as_slice());
     println!("Client 0 encrypt eggs: {:?}", now.elapsed());
 
@@ -126,7 +128,7 @@ fn main() {
             return enc.unseed::<Vec<Vec<u64>>>().key_switch(id).extract_all();
         })
         .collect_vec();
-    println!("Key switch time: {:?}", now.elapsed());
+    println!("Server Key switch for starting coords: {:?}", now.elapsed());
 
     // Server proceeds to extract private starging eggs state sent by clients
     let now = std::time::Instant::now();
@@ -134,7 +136,7 @@ fn main() {
         .unseed::<Vec<Vec<u64>>>()
         .key_switch(0)
         .extract_all();
-    println!("Server key switch: {:?}", now.elapsed());
+    println!("Server key switch for eggs: {:?}", now.elapsed());
 
     // Server state
     let mut server_players_coords = encrypted_starting_coords.clone();
@@ -144,7 +146,6 @@ fn main() {
 
     // -------------- Move player --------------//
 
-    let now = std::time::Instant::now();
     // each player's move direction for this round
     let directions = vec![
         Direction::Up,
@@ -152,15 +153,16 @@ fn main() {
         Direction::Left,
         Direction::Right,
     ];
-    for i in 1..no_of_parties {
+    for i in 0..no_of_parties {
         println!("Player i: {:?}", i);
 
-        // I have no idea I have to keep setting this,
+        // I have to keep seeting this,
         // otherwise, I'm getting "Parameters not set"
         set_parameter_set(ParameterSelector::NonInteractiveLTE4Party);
 
         // client side //
 
+        let now = std::time::Instant::now();
         let direction = u8_to_binary::<8>(directions[i] as u8);
         let direction_enc = cks[i].encrypt(direction.as_slice());
         println!("Client encrypt direction: {:?}", now.elapsed());
@@ -188,20 +190,24 @@ fn main() {
         // client side //
 
         // each client produces decryption share
+        let now = std::time::Instant::now();
         let dec_shares = encrypted_new_coords
             .iter()
             .map(|ct| cks.iter().map(|k| k.gen_decryption_share(ct)).collect_vec())
             .collect_vec();
+        println!("client decrypt shares time: {:?}", now.elapsed());
 
         // With all decryption shares, clients can aggregate the shares and decrypt the
         // ciphertext
+        let now = std::time::Instant::now();
         let decrypted_new_coords = encrypted_new_coords
             .iter()
             .zip(dec_shares.iter())
             .map(|(ct, dec_shares)| cks[0].aggregate_decryption_shares(ct, dec_shares))
             .collect_vec();
+        println!("aggreate decryption shares time: {:?}", now.elapsed());
 
-        let new_coords = binary_to_coords::<64>(decrypted_new_coords.as_slice());
+        let new_coords = binary_to_coords::<16>(decrypted_new_coords.as_slice());
         println!("New coords: {:?}, {:?}", new_coords[0], new_coords[1]);
     }
 
@@ -216,7 +222,7 @@ fn main() {
 
     // After extracting client's private inputs, server proceeds to evaluate the circuit
     let now = std::time::Instant::now();
-    let encrypted_new_eggs = lay_egg::lay_egg(&server_players_coords[0], &encrypted_eggs);
+    let encrypted_new_eggs = lay_egg::lay_egg(&server_players_coords[0], &server_eggs);
     println!("lay_egg circuit evaluation time: {:?}", now.elapsed());
 
     // Update eggs positions
@@ -225,18 +231,22 @@ fn main() {
     // client side //
 
     // each client produces decryption share
+    let now = std::time::Instant::now();
     let dec_shares = encrypted_new_eggs
         .iter()
         .map(|ct| cks.iter().map(|k| k.gen_decryption_share(ct)).collect_vec())
         .collect_vec();
+    println!("client decrypt shares time: {:?}", now.elapsed());
 
     // With all decryption shares, clients can aggregate the shares and decrypt the
     // ciphertext
+    let now = std::time::Instant::now();
     let decrypted_new_eggs = encrypted_new_eggs
         .iter()
         .zip(dec_shares.iter())
         .map(|(ct, dec_shares)| cks[0].aggregate_decryption_shares(ct, dec_shares))
         .collect_vec();
+    println!("aggreate decryption shares time: {:?}", now.elapsed());
 
     println!("New eggs: {:?}", decrypted_new_eggs);
 
@@ -261,18 +271,22 @@ fn main() {
     // client side //
 
     // each client produces decryption share
+    let now = std::time::Instant::now();
     let dec_shares = encrypted_new_eggs
         .iter()
         .map(|ct| cks.iter().map(|k| k.gen_decryption_share(ct)).collect_vec())
         .collect_vec();
+    println!("client decrypt shares time: {:?}", now.elapsed());
 
     // With all decryption shares, clients can aggregate the shares and decrypt the
     // ciphertext
+    let now = std::time::Instant::now();
     let decrypted_new_eggs = encrypted_new_eggs
         .iter()
         .zip(dec_shares.iter())
         .map(|(ct, dec_shares)| cks[0].aggregate_decryption_shares(ct, dec_shares))
         .collect_vec();
+    println!("aggreate decryption shares time: {:?}", now.elapsed());
 
     println!("New eggs: {:?}", decrypted_new_eggs);
 
@@ -287,12 +301,11 @@ fn main() {
     set_parameter_set(ParameterSelector::NonInteractiveLTE4Party);
 
     // After extracting client's private inputs, server proceeds to evaluate the circuit
-    let now = std::time::Instant::now();
     let mut flattened_players_coords = server_players_coords[0].clone();
     for i in 1..no_of_parties {
         flattened_players_coords.append(&mut server_players_coords[i])
     }
-
+    let now = std::time::Instant::now();
     let encrypted_cell = get_cell::get_cell(
         &server_players_coords[0],
         &server_eggs,
@@ -303,18 +316,22 @@ fn main() {
     // client side //
 
     // each client produces decryption share
+    let now = std::time::Instant::now();
     let dec_shares = encrypted_cell
         .iter()
         .map(|ct| cks.iter().map(|k| k.gen_decryption_share(ct)).collect_vec())
         .collect_vec();
+    println!("client decrypt shares time: {:?}", now.elapsed());
 
     // With all decryption shares, clients can aggregate the shares and decrypt the
     // ciphertext
+    let now = std::time::Instant::now();
     let decrypted_cell = encrypted_cell
         .iter()
         .zip(dec_shares.iter())
         .map(|(ct, dec_shares)| cks[0].aggregate_decryption_shares(ct, dec_shares))
         .collect_vec();
+    println!("aggreate decryption shares time: {:?}", now.elapsed());
 
     println!("Cell: {:?}", decrypted_cell);
 }
