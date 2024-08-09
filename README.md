@@ -1,4 +1,6 @@
+```
 cargo run --release
+```
 
 Circuits repo: https://github.com/veronicaz41/fully-homomorphic-encryption/pull/1
 
